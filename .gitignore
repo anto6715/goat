@@ -1,0 +1,7 @@
+# IDEs
+.idea
+.vscode
+.code
+
+# Dirs
+bin/
