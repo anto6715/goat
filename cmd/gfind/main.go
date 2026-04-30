@@ -1,44 +1,60 @@
 package main
 
 import (
-	"flag"
 	"log/slog"
 	"os"
 	"path/filepath"
 
+	"github.com/alecthomas/kong"
 	"github.com/anto6715/goat/find"
 	"github.com/anto6715/goat/internal/logging"
 )
 
+type cli struct {
+	Path    string `arg:"" name:"path" help:"Root directory to scan."`
+	Workers int    `name:"workers" default:"1" help:"Number of workers."`
+	Filter  string `name:"filter" default:"*" help:"Glob used to match file names."`
+}
+
 func main() {
+	// Initialize logger
 	logger := logging.New()
 	slog.SetDefault(logger)
-	
-	// User args
-	userPath := flag.String("path", "", "root directory")
-	nWorkers := flag.Int("workers", 1, "number of workers")
-	filter := flag.String("filter", "*", "filter")
-	flag.Parse()
+
+	// CLI args using kong
+	var args cli
+	kong.Parse(
+		&args,
+		kong.Name("gfind"),
+		kong.Description("Find files under a root directory."),
+		kong.UsageOnError(),
+	)
 
 	// Safety Checks
-	if *userPath == "" {
-		logger.Error("usage: go run main.go [-path path]")
+	info, err := os.Stat(args.Path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			logger.Error("path does not exist", "path", args.Path)
+		} else {
+			logger.Error("failed to inspect path", "path", args.Path, "err", err)
+		}
 		os.Exit(1)
 	}
-
-	if _, err := os.Stat(*userPath); os.IsNotExist(err) {
-		logger.Error("Not exists", "path", *userPath)
+	if !info.IsDir() {
+		logger.Error("path is not a directory", "path", args.Path)
 		os.Exit(1)
 	}
 
 	// Abs calls also Clean
-	root, err := filepath.Abs(*userPath)
+	root, err := filepath.Abs(args.Path)
 	if err != nil {
-		logger.Error("Error getting absolute path", "err", err)
+		logger.Error("failed to get absolute path", "path", args.Path, "err", err)
 		os.Exit(1)
 	}
 
 	// Execution
-	//start := time.Now()
-	find.Walk(root, *nWorkers, *filter)
+	if _, err := find.Walk(root, args.Workers, args.Filter); err != nil {
+		logger.Error("find failed", "err", err)
+		os.Exit(1)
+	}
 }
