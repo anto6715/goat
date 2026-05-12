@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ import (
 
 type cli struct {
 	Path    string `arg:"" name:"path" help:"Root directory to scan."`
-	Workers int    `name:"workers" default:"1" help:"Number of workers."`
+	Workers int    `name:"workers" default:"2" help:"Number of workers."`
 	Filter  string `name:"filter" default:"*" help:"Glob used to match file names."`
 }
 
@@ -53,7 +54,10 @@ func main() {
 	}
 
 	// Execution
-	if _, err := find.Walk(root, args.Workers, args.Filter); err != nil {
+	if err := find.Find(root, args.Workers, args.Filter, func(path string) error {
+		_, err := fmt.Println(path)
+		return err
+	}); err != nil {
 		logger.Error("find failed", "err", err)
 		os.Exit(1)
 	}
