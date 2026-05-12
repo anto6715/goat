@@ -54,7 +54,8 @@ func main() {
 	}
 
 	// Execution
-	if err := find.Find(root, args.Workers, args.Filter, func(path string) error {
+	// if err := find.Find(root, args.Workers, args.Filter, func(path string) error {
+	if err := find.SerialFind(root, args.Filter, func(path string) error {
 		_, err := fmt.Println(path)
 		return err
 	}); err != nil {
