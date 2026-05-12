@@ -1,26 +1,20 @@
 package find
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 )
 
-func Walk(root string, nWorkers int, filter string) (*[]string, error) {
-	// Initialize result
-	result := make([]string, 0)
-	
+func walk(root string, nWorkers int, outputChan chan<- string) (error) {
 	// Communication management
 	wg := sync.WaitGroup{}
 	// A buffered channel is necessary to avoid deadlocks (otherwise workers immediately exit)
 	dirChan := make(chan string, 100000)
-	// A buffered channel here speeds up the performance
-	fileChan := make(chan string, 100000)
 
 	// Directory Scanner
 	for range nWorkers {
-		go dirScan(dirChan, fileChan, &wg)
+		go dirScan(dirChan, outputChan, &wg)
 	}
 
 	// Start scan
@@ -31,22 +25,10 @@ func Walk(root string, nWorkers int, filter string) (*[]string, error) {
 	go func() {
 		wg.Wait()
 		close(dirChan)
-		close(fileChan)
+		close(outputChan)
 	}()
-
-	// Collect here the worker output
-	for file := range fileChan {
-		result = append(result, file)
-		matched, err := filepath.Match(filter, filepath.Base(file))
-		if err != nil {
-			return nil, err
-		}
-		if matched {
-			fmt.Println(file)
-		}
-	}
-
-	return &result, nil
+	
+	return nil
 }
 
 func dirScan(dirChan chan string, fileChan chan<- string, wg *sync.WaitGroup) {
