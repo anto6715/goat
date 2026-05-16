@@ -1,10 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
-	"runtime"
 	"sync"
 
 	"github.com/alecthomas/kong"
@@ -15,11 +16,25 @@ import (
 )
 
 type cli struct {
-	Path string `arg:"" name:"path" help:"Directory to compute MD5 hash for."`
+	Path    string `arg:"" name:"path" help:"Directory to compute MD5 hashes for."`
+	NWorker int    `name:"workers" aliases:"nWorker" default:"2" help:"Number of hashing workers."`
 }
 
+type hashJob struct {
+	index int
+	path  string
+}
+
+type hashResult struct {
+	index int
+	path  string
+	sum   string
+	err   error
+}
+
+var errHashFailed = errors.New("failed to hash one or more files")
+
 func main() {
-	// Initialize logger
 	logger := logging.New()
 	slog.SetDefault(logger)
 
@@ -27,41 +42,116 @@ func main() {
 	var args cli
 	kong.Parse(
 		&args,
-		kong.Name("MD5"),
-		kong.Description("Compute MD5 hash of files under a root directory."),
+		kong.Name("md5"),
+		kong.Description("Compute MD5 hashes of files under a root directory."),
 		kong.UsageOnError(),
 	)
 
-	// Validate input arguments
+	if err := run(args, os.Stdout, os.Stderr); err != nil {
+		slog.Error("md5 failed", "err", err)
+		os.Exit(1)
+	}
+}
+
+func run(args cli, stdout io.Writer, stderr io.Writer) error {
 	if err := tools.IsValidDir(args.Path); err != nil {
-		slog.Error("invalid directory", "path", args.Path, "err", err)
-		os.Exit(1)
+		return fmt.Errorf("invalid directory %q: %w", args.Path, err)
 	}
 
-	// Load file paths from the directory
-	files, err := find.FindFiles(args.Path, "*")
-	if err != nil {
-		slog.Error("failed to find files", "path", args.Path, "err", err)
-		os.Exit(1)
+	if args.NWorker < 1 {
+		return fmt.Errorf("n-worker must be greater than 0")
 	}
 
-	// Set GOMAXPROCS to the number of CPU cores
-	cores := runtime.NumCPU()
-	runtime.GOMAXPROCS(cores)
+	return hashFiles(args.Path, args.NWorker, stdout, stderr)
+}
 
-	var wg sync.WaitGroup
-	for _, file := range files {
-		wg.Add(1)
+func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) error {
+	// channel used by workers to receive jobs
+	jobs := make(chan hashJob, nWorker)
+	// channel used by workers to send results
+	results := make(chan hashResult, nWorker)
+	// channel used by the producer to send errors
+	producerErrCh := make(chan error, 1)
+
+	var workerWG sync.WaitGroup
+	workerWG.Add(nWorker)
+
+	for range nWorker {
 		go func() {
-			defer wg.Done()
-			md5, err := filehash.MD5Sum(file)
-			if err != nil {
-				fmt.Println("Error:", err)
-				return
+			defer workerWG.Done()
+			// Each worker stays alive until jobs is closed. Closing jobs is the
+			// signal that no more files will arrive.
+			for job := range jobs {
+				sum, err := filehash.MD5Sum(job.path)
+				results <- hashResult{
+					index: job.index,
+					path:  job.path,
+					sum:   sum,
+					err:   err,
+				}
 			}
-			fmt.Println(md5, file)
 		}()
 	}
 
-	wg.Wait()
+	// The producer sends file paths to jobs, and workers send results back to the main goroutine.
+	go func() {
+		defer close(jobs)
+
+		index := 0
+		producerErrCh <- find.Find(root, "*", func(path string) error {
+			jobs <- hashJob{index: index, path: path}
+			index++
+			return nil
+		})
+	}()
+
+	go func() {
+		// results must stay open until every worker has finished sending.
+		// WaitGroup lets this goroutine close results exactly once, at the right time.
+		workerWG.Wait()
+		close(results)
+	}()
+
+	// Workers finish at different times, so results can arrive out of order.
+	// pending temporarily stores completed hashes until we have the next index
+	// that should be printed.
+	pending := make(map[int]hashResult, nWorker)
+	next := 0
+	failed := false
+
+	for result := range results {
+		pending[result.index] = result
+
+		for {
+			ready, ok := pending[next]
+			if !ok {
+				break
+			}
+
+			if ready.err != nil {
+				failed = true
+				_, _ = fmt.Fprintf(stderr, "error: %s: %v\n", ready.path, ready.err)
+			} else {
+				_, _ = fmt.Fprintf(stdout, "%s %s\n", ready.sum, ready.path)
+			}
+
+			delete(pending, next)
+			next++
+		}
+	}
+
+	walkErr := <-producerErrCh
+	switch {
+	case walkErr != nil && failed:
+		return errors.Join(
+			fmt.Errorf("failed to find files under %q: %w", root, walkErr),
+			errHashFailed,
+		)
+	case walkErr != nil:
+		return fmt.Errorf("failed to find files under %q: %w", root, walkErr)
+	case failed:
+		return errHashFailed
+	default:
+		return nil
+	}
 }
