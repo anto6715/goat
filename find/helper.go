@@ -11,5 +11,5 @@ func matchFile(pattern string, file string) (bool, error) {
 }
 
 func shouldSkip(err error) bool {
-	return errors.Is(err, fs.ErrPermission)
+	return errors.Is(err, fs.ErrPermission) || errors.Is(err, fs.ErrNotExist)
 }
