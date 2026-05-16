@@ -13,6 +13,7 @@ declare -r __cmd_dir__="$__prj_dir__/cmd"
 ## List of expected commands to build
 declare -a __cmds__=(
     gfind
+    md5
 )
 
 # EXECUTE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

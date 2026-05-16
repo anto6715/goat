@@ -39,3 +39,17 @@ func FindAndPrint(root string, filter string) error {
 		return err
 	})
 }
+
+func FindFiles(root string, filter string) ([]string, error) {
+	var paths []string
+	err := Find(root, filter, func(path string) error {
+		paths = append(paths, path)
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return paths, nil
+}

@@ -1,7 +1,7 @@
 package logging
 
 import (
-	"log/slog"	
+	"log/slog"
 	"os"
 	"strings"
 )
