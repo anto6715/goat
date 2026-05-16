@@ -1,48 +1,26 @@
 package find
 
 import (
+	"fmt"
 	"io/fs"
 	"path/filepath"
 )
 
-func Find(root string, nWorkers int, filter string, visit func(string) error) error {
-	// A buffered channel here speeds up the performance
-	fileChan := make(chan string, 100000)
-	errChan := make(chan error, 1)
-
-	// Walk the filesystem in parallel and collect results
-	go func() {
-		errChan <- walk(root, nWorkers, fileChan)
-	}()
-
-	// Collect here the worker output and apply visit
-	for file := range fileChan {
-		matched, err := matchFile(filter, file)
-		if err != nil {
-			return err
-		}
-		if matched {
-			if err := visit(file); err != nil {
-				return err
-			}
-		}
-	}
-	return <-errChan
-}
-
-func SerialFind(root string, filter string, visit func(string) error) error {
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+// Find is the single-threaded reference implementation of Find.
+func Find(root string, filter string, visit func(string) error) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if shouldSkip(err) {
 				return nil
 			}
 			return err
 		}
-		// skip
+
 		if d.IsDir() {
 			return nil
 		}
-		matched, err := matchFile(filter, d.Name())
+
+		matched, err := matchFile(filter, path)
 		if err != nil {
 			return err
 		}
@@ -51,11 +29,13 @@ func SerialFind(root string, filter string, visit func(string) error) error {
 			return nil
 		}
 
-		if err := visit(path); err != nil {
-			return err
-		}
-		return nil
+		return visit(path)
 	})
+}
 
-	return err
+func FindAndPrint(root string, filter string) error {
+	return Find(root, filter, func(path string) error {
+		_, err := fmt.Println(path)
+		return err
+	})
 }
