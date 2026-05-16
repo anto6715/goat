@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/anto6715/goat/find"
 	"github.com/anto6715/goat/internal/logging"
+	"github.com/anto6715/goat/internal/tools"
 )
 
 type cli struct {
@@ -30,18 +31,9 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	// Safety Checks
-	info, err := os.Stat(args.Path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			logger.Error("path does not exist", "path", args.Path)
-		} else {
-			logger.Error("failed to inspect path", "path", args.Path, "err", err)
-		}
-		os.Exit(1)
-	}
-	if !info.IsDir() {
-		logger.Error("path is not a directory", "path", args.Path)
+	// Validate input arguments
+	if err := tools.IsValidDir(args.Path); err != nil {
+		slog.Error("invalid directory", "path", args.Path, "err", err)
 		os.Exit(1)
 	}
 

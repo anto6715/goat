@@ -45,10 +45,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, file := range files {
-		fmt.Println(file)
-	}
-
 	// Set GOMAXPROCS to the number of CPU cores
 	cores := runtime.NumCPU()
 	runtime.GOMAXPROCS(cores)
