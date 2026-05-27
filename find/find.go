@@ -3,11 +3,32 @@ package find
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
+	"strings"
 )
 
-// Find is the single-threaded reference implementation of Find.
-func Find(root string, filter string, visit func(string) error) error {
+type Options struct {
+	Filter   string
+	MaxDepth int // -1 means no limit
+}
+
+const (
+	defaultFilter   = "*"
+	defaultMaxDepth = -1
+)
+
+func DefaultOptions() Options {
+	return Options{
+		Filter:   defaultFilter,
+		MaxDepth: defaultMaxDepth,
+	}
+}
+
+// FindWithOptions walks root and calls visit for every matching file.
+func FindWithOptions(root string, opts Options, visit func(string) error) error {
+	root = filepath.Clean(root)
+
 	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if shouldSkip(err) {
@@ -16,11 +37,25 @@ func Find(root string, filter string, visit func(string) error) error {
 			return err
 		}
 
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+
 		if d.IsDir() {
+			if opts.MaxDepth >= 0 && dirDepth(rel) > opts.MaxDepth {
+				// Returning SkipDir stops WalkDir from descending further into
+				// directories that are already deeper than the allowed limit.
+				return fs.SkipDir
+			}
 			return nil
 		}
 
-		matched, err := matchFile(filter, path)
+		if opts.MaxDepth >= 0 && fileDepth(rel) > opts.MaxDepth {
+			return nil
+		}
+
+		matched, err := matchFile(opts.Filter, rel)
 		if err != nil {
 			return err
 		}
@@ -33,16 +68,16 @@ func Find(root string, filter string, visit func(string) error) error {
 	})
 }
 
-func FindAndPrint(root string, filter string) error {
-	return Find(root, filter, func(path string) error {
+func FindAndPrintWithOptions(root string, opts Options) error {
+	return FindWithOptions(root, opts, func(path string) error {
 		_, err := fmt.Println(path)
 		return err
 	})
 }
 
-func FindFiles(root string, filter string) ([]string, error) {
+func FindFilesWithOptions(root string, opts Options) ([]string, error) {
 	var paths []string
-	err := Find(root, filter, func(path string) error {
+	err := FindWithOptions(root, opts, func(path string) error {
 		paths = append(paths, path)
 		return nil
 	})
