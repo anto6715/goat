@@ -98,7 +98,8 @@ func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) err
 		defer close(jobs)
 
 		index := 0
-		producerErrCh <- find.Find(root, "*", func(path string) error {
+		opts := find.DefaultOptions()
+		producerErrCh <- find.FindWithOptions(root, opts, func(path string) error {
 			jobs <- hashJob{index: index, path: path}
 			index++
 			return nil
