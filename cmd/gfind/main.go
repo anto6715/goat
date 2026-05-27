@@ -12,9 +12,9 @@ import (
 )
 
 type cli struct {
-	Path    string `arg:"" name:"path" help:"Root directory to scan."`
-	Workers int    `name:"workers" default:"2" help:"Number of workers."`
-	Filter  string `name:"filter" default:"*" help:"Glob used to match file names."`
+	Path     string `arg:"" name:"path" help:"Root directory to scan."`
+	Filter   string `name:"filter" default:"*" help:"Glob used to match file names."`
+	MaxDepth int    `name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited)."`
 }
 
 func main() {
@@ -36,6 +36,10 @@ func main() {
 		slog.Error("invalid directory", "path", args.Path, "err", err)
 		os.Exit(1)
 	}
+	if args.MaxDepth < -1 {
+		slog.Error("invalid max depth", "max_depth", args.MaxDepth, "err", "must be -1 or greater")
+		os.Exit(1)
+	}
 
 	// Abs calls also Clean
 	root, err := filepath.Abs(args.Path)
@@ -45,7 +49,10 @@ func main() {
 	}
 
 	// Execution
-	if err := find.FindAndPrint(root, args.Filter); err != nil {
+	opts := find.DefaultOptions()
+	opts.Filter = args.Filter
+	opts.MaxDepth = args.MaxDepth
+	if err := find.FindAndPrintWithOptions(root, opts); err != nil {
 		logger.Error("find failed", "err", err)
 		os.Exit(1)
 	}
