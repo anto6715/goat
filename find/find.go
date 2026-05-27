@@ -3,9 +3,7 @@ package find
 import (
 	"fmt"
 	"io/fs"
-	"os"
 	"path/filepath"
-	"strings"
 )
 
 type Options struct {
