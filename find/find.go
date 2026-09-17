@@ -66,6 +66,7 @@ func FindWithOptions(root string, opts Options, visit func(string) error) error 
 	})
 }
 
+// Walks root and prints every matching file without returning anything.
 func FindAndPrintWithOptions(root string, opts Options) error {
 	return FindWithOptions(root, opts, func(path string) error {
 		_, err := fmt.Println(path)
@@ -73,6 +74,7 @@ func FindAndPrintWithOptions(root string, opts Options) error {
 	})
 }
 
+// Returns a list of all matching files in root, up to the specified depth.
 func FindFilesWithOptions(root string, opts Options) ([]string, error) {
 	var paths []string
 	err := FindWithOptions(root, opts, func(path string) error {
@@ -85,4 +87,16 @@ func FindFilesWithOptions(root string, opts Options) ([]string, error) {
 	}
 
 	return paths, nil
+}
+
+func FindFilesWithDirs(root string, opts Options) (map[string][]string, error) {
+	// store d as key and files as value
+	m := map[string][]string{}
+	err := FindWithOptions(root, opts, func(path string) error {
+		dir := filepath.Dir(path)
+		m[dir] = append(m[dir], path)
+		return nil
+	})
+
+	return m, err
 }
