@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"sort"
 	"sync"
 
@@ -122,6 +123,9 @@ func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 		defer close(jobs)
 
 		for _, path := range paths {
+			if filepath.Base(path) == legacyMetadataFile {
+				continue
+			}
 			jobs <- hashJob{path: path}
 		}
 	}()
@@ -134,7 +138,7 @@ func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 	}()
 
 	// gather results
-	completed := make([]hashResult, len(paths))
+	completed := make([]hashResult, 0, len(paths))
 	failed := false
 	for result := range results {
 		completed = append(completed, result)
@@ -159,7 +163,8 @@ func saveMetadata(root string, hashes []hashResult) error {
 	defer file.Close()
 
 	for _, result := range hashes {
-		_, err := fmt.Fprintln(file, result.path, result.sum)
+		filename := filepath.Base(result.path)
+		_, err := fmt.Fprintln(file, result.sum, filename)
 		if err != nil {
 			return fmt.Errorf("failed to write metadata: %w", err)
 		}
