@@ -142,7 +142,7 @@ func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 	failed := false
 	for result := range results {
 		completed = append(completed, result)
-
+		slog.Info("hash completed", "hash", result.sum, "path", result.path)
 		if result.err != nil {
 			failed = true
 			slog.Error("hash failed", "path", result.path, "err", result.err)
