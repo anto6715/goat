@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"sort"
 	"sync"
 
 	"github.com/alecthomas/kong"
@@ -54,6 +55,7 @@ func main() {
 }
 
 func run(args cli, stdout io.Writer, stderr io.Writer) error {
+	// Safety Checks
 	if err := tools.IsValidDir(args.Path); err != nil {
 		return fmt.Errorf("invalid directory %q: %w", args.Path, err)
 	}
@@ -62,16 +64,34 @@ func run(args cli, stdout io.Writer, stderr io.Writer) error {
 		return fmt.Errorf("n-worker must be greater than 0")
 	}
 
-	return hashFiles(args.Path, args.NWorker, stdout, stderr)
+	// Find files under the root directory
+	groups, err := find.FindFilesWithDirs(args.Path, find.DefaultOptions())
+	if err != nil {
+		return fmt.Errorf("failed to find files: %w", err)
+	}
+
+	dirs := make([]string, 0, len(groups))
+	for dir := range groups {
+		dirs = append(dirs, dir)
+	}
+	slog.Info("found directories", "count", len(dirs))
+
+	// To keep processing order consistent
+	sort.Strings(dirs)
+	for _, dir := range dirs {
+		slog.Info("processing directory", "dir", dir)
+		if err := hashFiles(groups[dir], args.NWorker, stdout, stderr); err != nil {
+			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
+		}
+	}
+	return nil
 }
 
-func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) error {
+func hashFiles(paths []string, nWorker int, stdout io.Writer, stderr io.Writer) error {
 	// channel used by workers to receive jobs
 	jobs := make(chan hashJob, nWorker)
 	// channel used by workers to send results
 	results := make(chan hashResult, nWorker)
-	// channel used by the producer to send errors
-	producerErrCh := make(chan error, 1)
 
 	var workerWG sync.WaitGroup
 	workerWG.Add(nWorker)
@@ -97,13 +117,9 @@ func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) err
 	go func() {
 		defer close(jobs)
 
-		index := 0
-		opts := find.DefaultOptions()
-		producerErrCh <- find.FindWithOptions(root, opts, func(path string) error {
+		for index, path := range paths {
 			jobs <- hashJob{index: index, path: path}
-			index++
-			return nil
-		})
+		}
 	}()
 
 	go func() {
@@ -116,15 +132,15 @@ func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) err
 	// Workers finish at different times, so results can arrive out of order.
 	// pending temporarily stores completed hashes until we have the next index
 	// that should be printed.
-	pending := make(map[int]hashResult, nWorker)
+	ordered := make(map[int]hashResult, len(paths))
 	next := 0
 	failed := false
 
 	for result := range results {
-		pending[result.index] = result
+		ordered[result.index] = result
 
 		for {
-			ready, ok := pending[next]
+			ready, ok := ordered[next]
 			if !ok {
 				break
 			}
@@ -136,23 +152,13 @@ func hashFiles(root string, nWorker int, stdout io.Writer, stderr io.Writer) err
 				_, _ = fmt.Fprintf(stdout, "%s %s\n", ready.sum, ready.path)
 			}
 
-			delete(pending, next)
+			delete(ordered, next)
 			next++
 		}
 	}
 
-	walkErr := <-producerErrCh
-	switch {
-	case walkErr != nil && failed:
-		return errors.Join(
-			fmt.Errorf("failed to find files under %q: %w", root, walkErr),
-			errHashFailed,
-		)
-	case walkErr != nil:
-		return fmt.Errorf("failed to find files under %q: %w", root, walkErr)
-	case failed:
+	if failed {
 		return errHashFailed
-	default:
-		return nil
 	}
+	return nil
 }
