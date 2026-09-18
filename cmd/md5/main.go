@@ -26,10 +26,12 @@ type hashJob struct {
 }
 
 type hashResult struct {
-	path  string
-	sum   string
-	err   error
+	path string
+	sum  string
+	err  error
 }
+
+const legacyMetadataFile = ".dir_md5.txt"
 
 var errHashFailed = errors.New("failed to hash one or more files")
 
@@ -77,13 +79,14 @@ func run(args cli, stdout io.Writer) error {
 	// To keep processing order consistent
 	sort.Strings(dirs)
 	for _, dir := range dirs {
-		// slog.Info("processing directory", "dir", dir)
-		if hashResult, err := hashFiles(groups[dir], args.NWorker); err != nil {
+		slog.Info("processing directory", "dir", dir)
+		hashResult, err := hashFiles(groups[dir], args.NWorker)
+		if err != nil {
 			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
-		} else {
-			for _, result := range hashResult {
-				fmt.Fprintln(stdout, result.path, result.sum)
-			}
+		}
+
+		if err := saveMetadata(dir, hashResult); err != nil {
+			return fmt.Errorf("failed to save metadata for %q: %w", dir, err)
 		}
 	}
 	return nil
@@ -146,4 +149,21 @@ func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 		return nil, errHashFailed
 	}
 	return completed, nil
+}
+
+func saveMetadata(root string, hashes []hashResult) error {
+	file, err := os.Create(root + "/" + legacyMetadataFile)
+	if err != nil {
+		return fmt.Errorf("failed to create metadata file: %w", err)
+	}
+	defer file.Close()
+
+	for _, result := range hashes {
+		_, err := fmt.Fprintln(file, result.path, result.sum)
+		if err != nil {
+			return fmt.Errorf("failed to write metadata: %w", err)
+		}
+	}
+
+	return nil
 }
