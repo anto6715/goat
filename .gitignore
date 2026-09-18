@@ -5,3 +5,6 @@
 
 # Dirs
 bin/
+
+# Files
+.dir_md5.txt
