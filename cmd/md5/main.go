@@ -22,12 +22,10 @@ type cli struct {
 }
 
 type hashJob struct {
-	index int
-	path  string
+	path string
 }
 
 type hashResult struct {
-	index int
 	path  string
 	sum   string
 	err   error
@@ -48,13 +46,13 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	if err := run(args, os.Stdout, os.Stderr); err != nil {
+	if err := run(args, os.Stdout); err != nil {
 		slog.Error("md5 failed", "err", err)
 		os.Exit(1)
 	}
 }
 
-func run(args cli, stdout io.Writer, stderr io.Writer) error {
+func run(args cli, stdout io.Writer) error {
 	// Safety Checks
 	if err := tools.IsValidDir(args.Path); err != nil {
 		return fmt.Errorf("invalid directory %q: %w", args.Path, err)
@@ -79,15 +77,19 @@ func run(args cli, stdout io.Writer, stderr io.Writer) error {
 	// To keep processing order consistent
 	sort.Strings(dirs)
 	for _, dir := range dirs {
-		slog.Info("processing directory", "dir", dir)
-		if err := hashFiles(groups[dir], args.NWorker, stdout, stderr); err != nil {
+		// slog.Info("processing directory", "dir", dir)
+		if hashResult, err := hashFiles(groups[dir], args.NWorker); err != nil {
 			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
+		} else {
+			for _, result := range hashResult {
+				fmt.Fprintln(stdout, result.path, result.sum)
+			}
 		}
 	}
 	return nil
 }
 
-func hashFiles(paths []string, nWorker int, stdout io.Writer, stderr io.Writer) error {
+func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 	// channel used by workers to receive jobs
 	jobs := make(chan hashJob, nWorker)
 	// channel used by workers to send results
@@ -104,10 +106,9 @@ func hashFiles(paths []string, nWorker int, stdout io.Writer, stderr io.Writer) 
 			for job := range jobs {
 				sum, err := filehash.MD5Sum(job.path)
 				results <- hashResult{
-					index: job.index,
-					path:  job.path,
-					sum:   sum,
-					err:   err,
+					path: job.path,
+					sum:  sum,
+					err:  err,
 				}
 			}
 		}()
@@ -117,8 +118,8 @@ func hashFiles(paths []string, nWorker int, stdout io.Writer, stderr io.Writer) 
 	go func() {
 		defer close(jobs)
 
-		for index, path := range paths {
-			jobs <- hashJob{index: index, path: path}
+		for _, path := range paths {
+			jobs <- hashJob{path: path}
 		}
 	}()
 
@@ -129,36 +130,20 @@ func hashFiles(paths []string, nWorker int, stdout io.Writer, stderr io.Writer) 
 		close(results)
 	}()
 
-	// Workers finish at different times, so results can arrive out of order.
-	// pending temporarily stores completed hashes until we have the next index
-	// that should be printed.
-	ordered := make(map[int]hashResult, len(paths))
-	next := 0
+	// gather results
+	completed := make([]hashResult, len(paths))
 	failed := false
-
 	for result := range results {
-		ordered[result.index] = result
+		completed = append(completed, result)
 
-		for {
-			ready, ok := ordered[next]
-			if !ok {
-				break
-			}
-
-			if ready.err != nil {
-				failed = true
-				_, _ = fmt.Fprintf(stderr, "error: %s: %v\n", ready.path, ready.err)
-			} else {
-				_, _ = fmt.Fprintf(stdout, "%s %s\n", ready.sum, ready.path)
-			}
-
-			delete(ordered, next)
-			next++
+		if result.err != nil {
+			failed = true
+			slog.Error("hash failed", "path", result.path, "err", result.err)
 		}
 	}
 
 	if failed {
-		return errHashFailed
+		return nil, errHashFailed
 	}
-	return nil
+	return completed, nil
 }
