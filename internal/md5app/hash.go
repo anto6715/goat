@@ -1,12 +1,16 @@
 package md5app
 
 import (
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"sync"
 
 	"github.com/anto6715/goat/filehash"
+	"github.com/anto6715/goat/internal/manifest"
 )
+
+var errHashFailed = errors.New("failed to hash one or more files")
 
 func hashFiles(paths []string, nWorker int, ignoreErrors bool) ([]hashResult, error) {
 	// channel used by workers to receive jobs
@@ -38,7 +42,7 @@ func hashFiles(paths []string, nWorker int, ignoreErrors bool) ([]hashResult, er
 		defer close(jobs)
 
 		for _, path := range paths {
-			if filepath.Base(path) == legacyMetadataFile {
+			if filepath.Base(path) == manifest.LegacyMetadataFile {
 				continue
 			}
 			jobs <- hashJob{path: path}
