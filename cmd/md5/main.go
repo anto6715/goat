@@ -20,6 +20,7 @@ import (
 type cli struct {
 	Path    string `arg:"" name:"path" help:"Directory to compute MD5 hashes for."`
 	NWorker int    `name:"workers" aliases:"nWorker" default:"2" help:"Number of hashing workers."`
+	IgnoreErrors bool `name:"ignore-errors" default:"false" help:"Ignore errors and continue processing."`
 }
 
 type hashJob struct {
@@ -81,7 +82,7 @@ func run(args cli, stdout io.Writer) error {
 	sort.Strings(dirs)
 	for _, dir := range dirs {
 		slog.Info("processing directory", "dir", dir)
-		hashResult, err := hashFiles(groups[dir], args.NWorker)
+		hashResult, err := hashFiles(groups[dir], args.NWorker, args.IgnoreErrors)
 		if err != nil {
 			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
 		}
@@ -93,7 +94,7 @@ func run(args cli, stdout io.Writer) error {
 	return nil
 }
 
-func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
+func hashFiles(paths []string, nWorker int, ignoreErrors bool) ([]hashResult, error) {
 	// channel used by workers to receive jobs
 	jobs := make(chan hashJob, nWorker)
 	// channel used by workers to send results
@@ -149,7 +150,7 @@ func hashFiles(paths []string, nWorker int) ([]hashResult, error) {
 		}
 	}
 
-	if failed {
+	if failed && !ignoreErrors {
 		return nil, errHashFailed
 	}
 	return completed, nil
