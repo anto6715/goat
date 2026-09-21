@@ -51,7 +51,14 @@ func save(root string, m Manifest) error {
 
 	// Write temporary file
 	if err := WriteLegacy(tmpFile, m); err != nil {
+		_ = tmpFile.Close()
 		return fmt.Errorf("failed to write metadata: %w", err)
+	}
+
+	// Sync and Close temporary file
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 	// Close and Save temporary file
 	if err := tmpFile.Close(); err != nil {
