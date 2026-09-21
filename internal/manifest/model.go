@@ -12,6 +12,7 @@ type Manifest struct {
 }
 
 const LegacyMetadataFile = ".dir_md5.txt"
+const LockFile = ".dir_md5.lock"
 
 func (m *Manifest) Merge(other Manifest) {
 	if m.Entries == nil {

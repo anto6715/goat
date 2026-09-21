@@ -77,24 +77,11 @@ func processDirectory(dir string, groups map[string][]string, opts Options) erro
 }
 
 func writeManifest(dir string, incoming manifest.Manifest, update bool) error {
-	// as default overwrite current manifest
-	finalManifest := incoming
-
-	// in this case finalManifest is a merge between the incoming manifest and the loaded current manifest
 	if update {
-		current, err := manifest.Load(dir)
-		if err != nil {
-			return fmt.Errorf("failed to load existing manifest for %q: %w", dir, err)
-		}
-		current.Merge(incoming)
-		finalManifest = current
+		return manifest.Update(dir, incoming)
 	}
 
-	if err := manifest.Save(dir, finalManifest); err != nil {
-		return fmt.Errorf("failed to save metadata for %q: %w", dir, err)
-	}
-
-	return nil
+	return manifest.Save(dir, incoming)
 }
 
 func sortedDirectories(groups map[string][]string) []string {

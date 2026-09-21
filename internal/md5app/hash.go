@@ -42,7 +42,7 @@ func hashFiles(paths []string, nWorker int, ignoreErrors bool) ([]hashResult, er
 		defer close(jobs)
 
 		for _, path := range paths {
-			if filepath.Base(path) == manifest.LegacyMetadataFile {
+			if toSkip(path) {
 				continue
 			}
 			jobs <- hashJob{path: path}
@@ -72,4 +72,8 @@ func hashFiles(paths []string, nWorker int, ignoreErrors bool) ([]hashResult, er
 		return nil, errHashFailed
 	}
 	return completed, nil
+}
+
+func toSkip(path string) bool {
+	return filepath.Base(path) == manifest.LegacyMetadataFile || filepath.Base(path) == manifest.LockFile
 }

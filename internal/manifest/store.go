@@ -7,7 +7,33 @@ import (
 	"path/filepath"
 )
 
+// Public Methods ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 func Save(root string, m Manifest) error {
+	return withExclusiveLock(root, func() error {
+		return save(root, m)
+	})
+}
+
+// No need (for now) to use exclusive lock for loading
+func Load(root string) (Manifest, error) {
+	return load(root)
+}
+
+// Atomic transaction from loading, merging, and saving
+func Update(dir string, other Manifest) error {
+	return withExclusiveLock(dir, func() error {
+		finalManifest, err := load(dir)
+		if err != nil {
+			return err
+		}
+		finalManifest.Merge(other)
+
+		return save(dir, finalManifest)
+	})
+}
+
+// Private Methods ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+func save(root string, m Manifest) error {
 	targetPath := filepath.Join(root, LegacyMetadataFile)
 
 	tmpFile, err := os.CreateTemp(root, LegacyMetadataFile+".tmp-*")
@@ -40,7 +66,7 @@ func Save(root string, m Manifest) error {
 	return nil
 }
 
-func Load(root string) (Manifest, error) {
+func load(root string) (Manifest, error) {
 	path := filepath.Join(root, LegacyMetadataFile)
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
