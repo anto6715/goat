@@ -14,7 +14,8 @@ type cli struct {
 	NWorker      int    `short:"w" name:"workers" aliases:"nWorker" default:"2" help:"Number of hashing workers."`
 	IgnoreErrors bool   `name:"ignore-errors" default:"false" help:"Ignore errors and continue processing."`
 	MaxDepth     int    `short:"L" name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited; 0 for root only)."`
-	Filter       string `short:f name:"filter" default:"*" help:"Glob used to match file names."`
+	Filter       string `short:"f" name:"filter" default:"*" help:"Glob used to match file names."`
+	Update       bool   `short:"u" name:"update" default:"false" help:"Update existing MD5 files."`
 }
 
 func main() {
@@ -35,6 +36,7 @@ func main() {
 		IgnoreErrors: args.IgnoreErrors,
 		MaxDepth:     args.MaxDepth,
 		Filter:       args.Filter,
+		Update:       args.Update,
 	})
 
 	if err != nil {

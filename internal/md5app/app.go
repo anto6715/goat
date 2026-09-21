@@ -16,6 +16,7 @@ type Options struct {
 	IgnoreErrors bool
 	MaxDepth     int
 	Filter       string
+	Update       bool
 }
 
 func Run(root string, opts Options) error {
@@ -47,11 +48,21 @@ func Run(root string, opts Options) error {
 			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
 		}
 
-		m := manifest.Manifest{
+		incoming := manifest.Manifest{
 			Entries: buildManifestEntries(results),
 		}
+		finalManifest := incoming
 
-		if err := manifest.Save(dir, m); err != nil {
+		if opts.Update {
+			current, err := manifest.Load(dir)
+			if err != nil {
+				return fmt.Errorf("failed to load existing manifest for %q: %w", dir, err)
+			}
+			current.Merge(incoming)
+			finalManifest = current
+		}
+
+		if err := manifest.Save(dir, finalManifest); err != nil {
 			return fmt.Errorf("failed to save metadata for %q: %w", dir, err)
 		}
 	}
