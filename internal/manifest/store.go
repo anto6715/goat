@@ -10,7 +10,7 @@ import (
 func Save(root string, m Manifest) error {
 	targetPath := filepath.Join(root, LegacyMetadataFile)
 
-	tmpFile, err := os.CreateTemp("", LegacyMetadataFile+".tmp-*")
+	tmpFile, err := os.CreateTemp(root, LegacyMetadataFile+".tmp-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
