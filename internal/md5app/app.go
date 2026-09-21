@@ -30,42 +30,70 @@ func Run(root string, opts Options) error {
 	}
 
 	// Find files under the root directory
-	findOpts := find.DefaultOptions()
-	findOpts.MaxDepth = opts.MaxDepth
-	findOpts.Filter = opts.Filter
-	groups, err := find.FindFilesWithDirs(root, findOpts)
+	groups, err := findFiles(root, opts.MaxDepth, opts.Filter)
 	if err != nil {
 		return fmt.Errorf("failed to find files: %w", err)
 	}
-	slog.Info("found directories", "count", len(groups))
 
 	// To keep processing order consistent
 	for _, dir := range sortedDirectories(groups) {
-		slog.Info("processing directory", "dir", dir)
-
-		results, err := hashFiles(groups[dir], opts.Workers, opts.IgnoreErrors)
+		err := processDirectory(dir, groups, opts)
 		if err != nil {
-			return fmt.Errorf("failed to hash files in %q: %w", dir, err)
-		}
-
-		incoming := manifest.Manifest{
-			Entries: buildManifestEntries(results),
-		}
-		finalManifest := incoming
-
-		if opts.Update {
-			current, err := manifest.Load(dir)
-			if err != nil {
-				return fmt.Errorf("failed to load existing manifest for %q: %w", dir, err)
-			}
-			current.Merge(incoming)
-			finalManifest = current
-		}
-
-		if err := manifest.Save(dir, finalManifest); err != nil {
-			return fmt.Errorf("failed to save metadata for %q: %w", dir, err)
+			return fmt.Errorf("failed to process directory %q: %w", dir, err)
 		}
 	}
+	return nil
+}
+
+// Interact with the find package to find files under the root directory
+func findFiles(root string, depth int, filter string) (map[string][]string, error) {
+	findOpts := find.DefaultOptions()
+	findOpts.MaxDepth = depth
+	findOpts.Filter = filter
+	groups, err := find.FindFilesWithDirs(root, findOpts)
+	if err != nil {
+		return nil, err
+	}
+	slog.Info("found directories", "count", len(groups))
+
+	return groups, nil
+}
+
+func processDirectory(dir string, groups map[string][]string, opts Options) error {
+	slog.Info("processing directory", "dir", dir)
+	results, err := hashFiles(groups[dir], opts.Workers, opts.IgnoreErrors)
+	if err != nil {
+		return fmt.Errorf("failed to hash files in %q: %w", dir, err)
+	}
+
+	incoming := manifest.Manifest{
+		Entries: buildManifestEntries(results),
+	}
+	err = writeManifest(dir, incoming, opts.Update)
+	if err != nil {
+		return fmt.Errorf("failed to write results: %w", err)
+	}
+	return nil
+}
+
+func writeManifest(dir string, incoming manifest.Manifest, update bool) error {
+	// as default overwrite current manifest
+	finalManifest := incoming
+
+	// in this case finalManifest is a merge between the incoming manifest and the loaded current manifest
+	if update {
+		current, err := manifest.Load(dir)
+		if err != nil {
+			return fmt.Errorf("failed to load existing manifest for %q: %w", dir, err)
+		}
+		current.Merge(incoming)
+		finalManifest = current
+	}
+
+	if err := manifest.Save(dir, finalManifest); err != nil {
+		return fmt.Errorf("failed to save metadata for %q: %w", dir, err)
+	}
+
 	return nil
 }
 
