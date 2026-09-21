@@ -7,4 +7,4 @@
 bin/
 
 # Files
-.dir_md5.txt
+.dir_md5.*
