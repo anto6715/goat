@@ -14,6 +14,7 @@ import (
 type Options struct {
 	Workers      int
 	IgnoreErrors bool
+	MaxDepth     int
 }
 
 func Run(root string, opts Options) error {
@@ -27,7 +28,9 @@ func Run(root string, opts Options) error {
 	}
 
 	// Find files under the root directory
-	groups, err := find.FindFilesWithDirs(root, find.DefaultOptions())
+	findOpts := find.DefaultOptions()
+	findOpts.MaxDepth = opts.MaxDepth
+	groups, err := find.FindFilesWithDirs(root, findOpts)
 	if err != nil {
 		return fmt.Errorf("failed to find files: %w", err)
 	}
