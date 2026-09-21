@@ -8,20 +8,33 @@ import (
 )
 
 func Save(root string, m Manifest) error {
-	path := filepath.Join(root, LegacyMetadataFile)
+	targetPath := filepath.Join(root, LegacyMetadataFile)
 
-	file, err := os.Create(path)
+	tmpFile, err := os.CreateTemp("", LegacyMetadataFile+".tmp-*")
 	if err != nil {
-		return fmt.Errorf("failed to create metadata file: %w", err)
+		return fmt.Errorf("failed to create temp file: %w", err)
 	}
 
-	writeErr := WriteLegacy(file, m)
-	closeErr := file.Close()
-	if writeErr != nil {
-		return fmt.Errorf("failed to write metadata: %w", writeErr)
+	tmpPath := tmpFile.Name()
+
+	// If anything fails, remove the temporary file
+	// If rename works, Remove does nothing
+	defer func() {
+		_ = os.Remove(tmpPath)
+	}()
+
+	// Write temporary file
+	if err := WriteLegacy(tmpFile, m); err != nil {
+		return fmt.Errorf("failed to write metadata: %w", err)
 	}
-	if closeErr != nil {
-		return fmt.Errorf("failed to close metadata file: %w", closeErr)
+	// Close and Save temporary file
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	// Finally, rename the temp file to the target path
+	if err := os.Rename(tmpPath, targetPath); err != nil {
+		return fmt.Errorf("failed to rename temp file: %w", err)
 	}
 
 	return nil
