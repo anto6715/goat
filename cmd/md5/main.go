@@ -14,6 +14,7 @@ type cli struct {
 	NWorker      int    `short:"w" name:"workers" aliases:"nWorker" default:"2" help:"Number of hashing workers."`
 	IgnoreErrors bool   `name:"ignore-errors" default:"false" help:"Ignore errors and continue processing."`
 	MaxDepth     int    `short:"L" name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited; 0 for root only)."`
+	Filter       string `short:f name:"filter" default:"*" help:"Glob used to match file names."`
 }
 
 func main() {
@@ -33,6 +34,7 @@ func main() {
 		Workers:      args.NWorker,
 		IgnoreErrors: args.IgnoreErrors,
 		MaxDepth:     args.MaxDepth,
+		Filter:       args.Filter,
 	})
 
 	if err != nil {
