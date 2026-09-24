@@ -10,8 +10,9 @@ import (
 )
 
 type cli struct {
-	Path     string `arg:"" name:"path" help:"Directory to compute MD5 hashes for."`
-	MaxDepth int    `short:"L" name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited; 0 for root only)."`
+	References []string `name:"references" help:"Directory to compute MD5 hashes for."`
+	Target     string   `name:"target" help:"Directory to remove files from."`
+	MaxDepth   int      `short:"L" name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited; 0 for root only)."`
 }
 
 func main() {
@@ -27,7 +28,7 @@ func main() {
 		kong.UsageOnError(),
 	)
 
-	err := safermapp.Run(args.Path, safermapp.Options{
+	err := safermapp.Run(args.References, args.Target, safermapp.Options{
 		Depth: args.MaxDepth,
 	})
 
