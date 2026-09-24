@@ -14,6 +14,7 @@ declare -r __cmd_dir__="$__prj_dir__/cmd"
 declare -a __cmds__=(
     gfind
     md5
+    saferm
 )
 
 # EXECUTE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
