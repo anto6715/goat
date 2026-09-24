@@ -8,21 +8,28 @@ import (
 	"github.com/anto6715/goat/internal/manifest"
 )
 
-type Options struct {
-	Depth int
+type Config struct {
+	References []string
+	Target     string
+	MaxDepth   int
 }
 
-func Run(references []string, target string, opts Options) error {
-	slog.Info("Loading target files to be removed", "target", target)
-	targetHashFiles, err := LoadHashFiles(target, opts.Depth)
+func Run(cfg Config) error {
+	err := validateConfig(cfg)
+	if err != nil {
+		return err
+	}
+
+	slog.Info("Loading target files to be removed", "target", cfg.Target)
+	targetHashFiles, err := LoadHashFiles(cfg.Target, cfg.MaxDepth)
 	if err != nil {
 		return err
 	}
 	slog.Info("target hash files", "nfiles", targetHashFiles.NFiles())
 
-	for _, reference := range references {
+	for _, reference := range cfg.References {
 		slog.Info("loading reference hash files", "reference", reference)
-		refHashFiles, err := LoadHashFiles(reference, opts.Depth)
+		refHashFiles, err := LoadHashFiles(reference, cfg.MaxDepth)
 		if err != nil {
 			return err
 		}
@@ -34,7 +41,7 @@ func Run(references []string, target string, opts Options) error {
 
 }
 
-// Given a root directory and depth, load all manifest files and 
+// Given a root directory and depth, load all manifest files and
 // build a HashFiles containing the hash files from all manifest files found.
 func LoadHashFiles(root string, depth int) (HashFiles, error) {
 	// get list of all available manifest files
