@@ -1,9 +1,11 @@
 package safermapp
 
 import (
+	"encoding/hex"
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 
 	"github.com/anto6715/goat/find"
 	"github.com/anto6715/goat/internal/manifest"
@@ -45,7 +47,7 @@ func addManifestToIndex(index fileIndex, manifestFile string) error {
 	for _, entry := range m.Entries {
 		key, record, err := indexRecord(manifestDir, entry)
 		if err != nil {
-			return fmt.Errorf("failed to index entry: %w", err)
+			return fmt.Errorf("invalid entry %q in manifest %q: %w", entry.Name, manifestFile, err)
 		}
 		index[key] = append(index[key], record)
 	}
@@ -59,9 +61,10 @@ func indexRecord(manifestDir string, entry manifest.Entry) (fileKey, fileRecord,
 		return fileKey{}, fileRecord{}, err
 	}
 
+	normalizedMD5 := strings.ToLower(entry.MD5)
 	key := fileKey{
 		name: entry.Name,
-		md5:  entry.MD5,
+		md5:  normalizedMD5,
 	}
 	record := fileRecord{
 		path:        filepath.Join(manifestDir, entry.Name),
@@ -81,6 +84,9 @@ func isValidEntry(entry manifest.Entry) error {
 	if entry.Name == "." || entry.Name == ".." {
 		return fmt.Errorf("invalid entry: %s", entry.Name)
 	}
+	if filepath.Base(entry.Name) != entry.Name {
+		return fmt.Errorf("entry must be a filename: %s", entry.Name)
+	}
 
 	// Check on MD5
 	if entry.MD5 == "" {
@@ -89,6 +95,10 @@ func isValidEntry(entry manifest.Entry) error {
 
 	if len(entry.MD5) != 32 {
 		return fmt.Errorf("invalid MD5 length: %d", len(entry.MD5))
+	}
+
+	if _, err := hex.DecodeString(entry.MD5); err != nil {
+		return fmt.Errorf("invalid MD5: %w", err)
 	}
 
 	return nil
