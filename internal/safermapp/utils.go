@@ -42,8 +42,18 @@ func normalizeConfig(cfg Config) (Config, error) {
 
 	// check if target is a reference
 	for _, reference := range normalized.References {
+		// reject if target is a reference
 		if reference == target {
-			return Config{}, fmt.Errorf("reference '%s' cannot be the target '%s'", reference, target)
+			return Config{}, fmt.Errorf("reference %q cannot be the target %q", reference, target)
+		}
+
+		// reject if target is a subdirectory of a reference
+		overlap, err := pathsOverlap(reference, target)
+		if err != nil {
+			return Config{}, fmt.Errorf("compare reference %q and target %q: %w", reference, target, err)
+		}
+		if overlap {
+			return Config{}, fmt.Errorf("reference %q and target %q cannot overlap", reference, target)
 		}
 	}
 
@@ -55,7 +65,7 @@ func canonicalDir(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("path is empty")
 	}
-	
+
 	absolute, err := filepath.Abs(path)
 	if err != nil {
 		return "", err
@@ -83,4 +93,31 @@ func getManifestDir(manifestFile string) (string, error) {
 		return "", err
 	}
 	return canonicalDir(manifestDir)
+}
+
+func pathsOverlap(reference, target string) (bool, error) {
+	targetInsideReference, err := pathWithin(reference, target)
+	if err != nil {
+		return false, err
+	}
+	if targetInsideReference {
+		return true, nil
+	}
+
+	referenceInsideTarget, err := pathWithin(target, reference)
+	if err != nil {
+		return false, fmt.Errorf("invalid path: %w", err)
+	}
+	if referenceInsideTarget {
+		return true, nil
+	}
+	return false, nil
+}
+
+func pathWithin(parent, child string) (bool, error) {
+	relative, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false, err
+	}
+	return relative != "." && filepath.IsLocal(relative), nil
 }
