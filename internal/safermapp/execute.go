@@ -14,6 +14,10 @@ func executePlan(plan []candidate) error {
 		}
 
 		if err := os.Remove(candidate.target.path); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				slog.Warn("not exists", "path", candidate.target.path)
+				continue
+			}
 			return fmt.Errorf("remove %q: %w", candidate.target.path, err)
 		}
 
@@ -28,8 +32,8 @@ func validateCandidatePresence(candidate candidate) error {
 	if err != nil {
 		return fmt.Errorf("inspect target: %w", err)
 	}
-	if !targetInfo.Mode().IsRegular() {
-		return fmt.Errorf("target is not a regular file")
+	if !targetInfo.Mode().Perm().IsDir() {
+		return fmt.Errorf("target is a directory")
 	}
 
 	for _, reference := range candidate.references {
