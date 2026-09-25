@@ -32,7 +32,7 @@ func validateCandidatePresence(candidate candidate) error {
 	if err != nil {
 		return fmt.Errorf("inspect target: %w", err)
 	}
-	if !targetInfo.Mode().Perm().IsDir() {
+	if !targetInfo.Mode().IsDir() {
 		return fmt.Errorf("target is a directory")
 	}
 
