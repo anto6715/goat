@@ -10,14 +10,14 @@ import (
 func executePlan(plan []candidate) error {
 	for _, candidate := range plan {
 		if err := validateCandidatePresence(candidate); err != nil {
-			return fmt.Errorf("refuse to remove %q: %w", candidate.target.path, err)
-		}
-
-		if err := os.Remove(candidate.target.path); err != nil {
 			if errors.Is(err, os.ErrNotExist) {
 				slog.Warn("not exists", "path", candidate.target.path)
 				continue
 			}
+			return fmt.Errorf("refuse to remove %q: %w", candidate.target.path, err)
+		}
+
+		if err := os.Remove(candidate.target.path); err != nil {
 			return fmt.Errorf("remove %q: %w", candidate.target.path, err)
 		}
 
