@@ -13,6 +13,7 @@ type cli struct {
 	References []string `name:"references" optional:"" help:"Directory to compute MD5 hashes for."`
 	Target     string   `name:"target" optional:"" help:"Directory to remove files from."`
 	MaxDepth   int      `short:"L" name:"max-depth" default:"-1" help:"Maximum directory depth relative to root (-1 for unlimited; 0 for root only)."`
+	Apply      bool     `name:"apply" help:"Proceed with file removal based on the manifest."`
 }
 
 func main() {
@@ -32,6 +33,7 @@ func main() {
 		References: args.References,
 		Target:     args.Target,
 		MaxDepth:   args.MaxDepth,
+		Apply:      args.Apply,
 	})
 
 	if err != nil {

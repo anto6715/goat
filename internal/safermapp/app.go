@@ -1,13 +1,16 @@
 package safermapp
 
 import (
+	"fmt"
 	"log/slog"
+	"os"
 )
 
 type Config struct {
 	References []string
 	Target     string
 	MaxDepth   int
+	Apply      bool
 }
 
 func Run(cfg Config) error {
@@ -28,8 +31,22 @@ func Run(cfg Config) error {
 		return err
 	}
 	plan := buildRemovalPlan(refIndex, targetIndex)
-	printRemovalPlan(plan)
-	return nil
+
+	if err := writeRemovalPlan(os.Stdout, plan); err != nil {
+		return fmt.Errorf("failed to print removal plan: %w", err)
+	}
+
+	if len(plan) == 0 {
+		return nil
+	}
+
+	if !cfg.Apply {
+		fmt.Println("\nDry run: no files were removed")
+		fmt.Println("Run again with --apply to remove verified duplicates")
+		return nil
+	}
+	slog.Info("executing plan", "count", len(plan))
+	return executePlan(plan)
 }
 
 // loadIndex builds an index from every manifest under roots.
@@ -68,4 +85,15 @@ func buildRemovalPlan(references fileIndex, targets fileIndex) []candidate {
 		}
 	}
 	return plan
+}
+
+func executePlan(plan []candidate) error {
+	for _, candidate := range plan {
+		fmt.Println("rm -f", candidate.target.path)
+		err := os.Remove(candidate.target.path)
+		if err != nil {
+			return fmt.Errorf("failed to remove %q: %w", candidate.target.path, err)
+		}
+	}
+	return nil
 }
