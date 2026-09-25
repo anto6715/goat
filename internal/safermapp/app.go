@@ -86,14 +86,3 @@ func buildRemovalPlan(references fileIndex, targets fileIndex) []candidate {
 	}
 	return plan
 }
-
-func executePlan(plan []candidate) error {
-	for _, candidate := range plan {
-		fmt.Println("rm -f", candidate.target.path)
-		err := os.Remove(candidate.target.path)
-		if err != nil {
-			return fmt.Errorf("failed to remove %q: %w", candidate.target.path, err)
-		}
-	}
-	return nil
-}
